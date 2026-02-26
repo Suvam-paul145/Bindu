@@ -61,7 +61,10 @@ in development. The field is kept as a raw dict without any validation.
 
 **What needs to happen:**
 
-- Define a TypedDict or dataclass for the `agent_trust` configuration.
+- Review the existing settings pattern in `bindu/settings.py` and add
+  `agent_trust` settings using `app_settings`.
+- Define a proper validation structure (TypedDict or Pydantic model consistent with
+  the rest of the settings module).
 - Validate the structure during config loading.
 - Add unit tests for valid and invalid trust configurations.
 
@@ -146,7 +149,9 @@ navigate.
 
 **What needs to happen:**
 
-- Create a new `constants.ts` file (e.g., `frontend/src/lib/constants.ts`).
+- Check whether a constants file already exists in the frontend before creating a
+  new one.
+- If none exists, create `frontend/src/lib/constants.ts`.
 - Move the constant values out of `Settings.ts`.
 - Update all imports across the frontend.
 
@@ -253,6 +258,7 @@ understand the transitions to work on features like pause/resume.
 
 - `bindu/server/workers/base.py`
 - `bindu/server/workers/manifest_worker.py`
+- `bindu/server/applications.py`
 
 ---
 
