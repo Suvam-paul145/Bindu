@@ -37,8 +37,43 @@
 		}
 	});
 
-	function handleSignIn() {
-		window.location.href = `${base}/login`;
+	async function handleSignIn() {
+		try {
+			const response = await fetch(`${base}/login`);
+
+			let data: any = null;
+			try {
+				data = await response.json();
+			} catch {
+				// Response is not JSON; leave `data` as null.
+			}
+
+			if (!response.ok) {
+				const errorCode = data?.error ?? data?.code;
+				if (errorCode && errorCode in OAUTH_ERROR_MESSAGES) {
+					errorStore.set(OAUTH_ERROR_MESSAGES[errorCode]);
+				} else if (data?.message && typeof data.message === "string") {
+					errorStore.set(data.message);
+				} else {
+					errorStore.set(OAUTH_ERROR_MESSAGES["OAUTH_PROVIDER_ERROR"]);
+				}
+				return;
+			}
+
+			const redirectUrl =
+				(typeof data?.redirectUrl === "string" && data.redirectUrl) ||
+				(typeof data?.url === "string" && data.url);
+
+			if (redirectUrl) {
+				window.location.href = redirectUrl;
+			} else {
+				// Fallback to existing behavior if no URL is provided in the JSON.
+				window.location.href = `${base}/login`;
+			}
+		} catch {
+			// Network or unexpected error — treat as provider unavailable.
+			errorStore.set(OAUTH_ERROR_MESSAGES["OAUTH_PROVIDER_UNAVAILABLE"]);
+		}
 	}
 </script>
 
