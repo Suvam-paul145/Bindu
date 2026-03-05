@@ -466,32 +466,56 @@ class BinduApplication(Starlette):
         from x402.types import PaymentRequirements, SupportedNetworks
         from typing import cast
 
-        max_amount_required, asset_address, eip712_domain = (
-            process_price_to_atomic_amount(x402_ext.amount, x402_ext.network)
-        )
+        # When multiple payment options are configured on the extension, create a
+        # PaymentRequirements entry for each one. Otherwise, fall back to the single
+        # amount/network configuration for backward compatibility.
+        payment_requirements: list[PaymentRequirements] = []
 
-        return [
-            PaymentRequirements(
-                scheme="exact",
-                network=cast(SupportedNetworks, x402_ext.network),
-                asset=asset_address,
-                max_amount_required=max_amount_required,
-                resource=f"{manifest.url}{resource_suffix}",
-                description=f"Payment required to use {manifest.name}",
-                mime_type="",
-                pay_to=x402_ext.pay_to_address,
-                max_timeout_seconds=60,
-                output_schema={
-                    "input": {
-                        "type": "http",
-                        "method": "POST",
-                        "discoverable": True,
-                    },
-                    "output": {},
-                },
-                extra=eip712_domain,
+        options: list[dict[str, Any]]
+        if getattr(x402_ext, "payment_options", None):
+            options = list(x402_ext.payment_options)  # type: ignore[assignment]
+        else:
+            options = [
+                {
+                    "amount": x402_ext.amount,
+                    "network": x402_ext.network,
+                    "pay_to_address": x402_ext.pay_to_address,
+                }
+            ]
+
+        for opt in options:
+            amount = opt.get("amount")
+            network = opt.get("network") or app_settings.x402.default_network
+            pay_to_address = opt.get("pay_to_address") or x402_ext.pay_to_address
+
+            max_amount_required, asset_address, eip712_domain = (
+                process_price_to_atomic_amount(amount, network)
             )
-        ]
+
+            payment_requirements.append(
+                PaymentRequirements(
+                    scheme="exact",
+                    network=cast(SupportedNetworks, network),
+                    asset=asset_address,
+                    max_amount_required=max_amount_required,
+                    resource=f"{manifest.url}{resource_suffix}",
+                    description=f"Payment required to use {manifest.name}",
+                    mime_type="",
+                    pay_to=pay_to_address,
+                    max_timeout_seconds=60,
+                    output_schema={
+                        "input": {
+                            "type": "http",
+                            "method": "POST",
+                            "discoverable": True,
+                        },
+                        "output": {},
+                    },
+                    extra=eip712_domain,
+                )
+            )
+
+        return payment_requirements
 
     def _setup_middleware(
         self,

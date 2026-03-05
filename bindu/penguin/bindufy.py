@@ -273,25 +273,64 @@ def bindufy(
     x402_extension = None
 
     if execution_cost:
-        # Create X402 extension with payment configuration
-        amount = execution_cost.get("amount")
-        token = execution_cost.get("token", "USDC")
-        network = execution_cost.get("network", "base-sepolia")
-        pay_to_address = execution_cost.get("pay_to_address")
-
-        if not amount:
+        # Normalize execution_cost into a list of cost entries so that we can
+        # support multiple payment options, e.g.
+        #   0.1 USDC on Base OR 0.0001 ETH on Mainnet
+        if isinstance(execution_cost, dict):
+            cost_entries = [execution_cost]
+        elif isinstance(execution_cost, list):
+            if not execution_cost:
+                raise ValueError(
+                    "execution_cost list cannot be empty when configured"
+                )
+            cost_entries = execution_cost
+        else:
             raise ValueError(
-                "execution_cost.amount is required when execution_cost is configured"
+                "execution_cost must be either a dict or a list of dicts"
             )
 
-        logger.info(f"Execution cost configured: {amount} {token} on {network}")
+        normalized_costs: list[dict[str, Any]] = []
 
+        for idx, cost in enumerate(cost_entries):
+            if not isinstance(cost, dict):
+                raise ValueError(
+                    "Each entry in execution_cost list must be a dictionary"
+                )
+
+            amount = cost.get("amount")
+            token = cost.get("token", "USDC")
+            network = cost.get("network", "base-sepolia")
+            pay_to_address = cost.get("pay_to_address")
+
+            if not amount:
+                raise ValueError(
+                    "execution_cost.amount is required when execution_cost is configured"
+                )
+
+            logger.info(
+                f"Execution cost option {idx + 1}: {amount} {token} on {network}"
+            )
+
+            normalized_costs.append(
+                {
+                    "amount": amount,
+                    "token": token,
+                    "network": network,
+                    "pay_to_address": pay_to_address,
+                }
+            )
+
+        # Create X402 extension with payment configuration (supports multiple options)
+        # For backward compatibility, primary amount/token/network/pay_to_address
+        # are derived from the first option.
+        primary = normalized_costs[0]
         x402_extension = X402AgentExtension(
-            amount=amount,
-            token=token,
-            network=network,
+            amount=primary["amount"],
+            token=primary.get("token", "USDC"),
+            network=primary.get("network", "base-sepolia"),
+            pay_to_address=primary.get("pay_to_address") or "",
             required=True,  # Payment is required for paid agents
-            pay_to_address=pay_to_address,
+            payment_options=normalized_costs,
         )
 
         logger.info(f"X402 extension created: {x402_extension}")

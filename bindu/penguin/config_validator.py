@@ -180,6 +180,31 @@ class ConfigValidator:
         if config.get("kind") not in ["agent", "team", "workflow"]:
             raise ValueError("Field 'kind' must be one of: agent, team, workflow")
 
+        # execution_cost can be either a single dict or a list of dicts
+        if "execution_cost" in config and config["execution_cost"] is not None:
+            execution_cost = config["execution_cost"]
+
+            # Normalize basic type – we accept a dict or list of dicts
+            if isinstance(execution_cost, dict):
+                # Single option – nothing else to validate here
+                return
+
+            if isinstance(execution_cost, list):
+                if not execution_cost:
+                    raise ValueError("Field 'execution_cost' list cannot be empty")
+
+                for item in execution_cost:
+                    if not isinstance(item, dict):
+                        raise ValueError(
+                            "Field 'execution_cost' must be a dict or a list of dicts"
+                        )
+                return
+
+            # Any other type is invalid
+            raise ValueError(
+                "Field 'execution_cost' must be a dict or a list of dicts"
+            )
+
     # ------------------------------------------------------------------
     # Auth validation
     # ------------------------------------------------------------------
