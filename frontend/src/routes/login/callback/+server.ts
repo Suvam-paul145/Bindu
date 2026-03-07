@@ -57,47 +57,59 @@ export async function GET({ url, locals, cookies, request, getClientAddress }) {
 		throw error(403, "Code verifier cookie not found");
 	}
 
-	const { userData, token } = await getOIDCUserData(
-		{ redirectURI: validatedToken.redirectUrl },
-		code,
-		codeVerifier,
-		iss,
-		url
-	);
+	try {
+		const { userData, token } = await getOIDCUserData(
+			{ redirectURI: validatedToken.redirectUrl },
+			code,
+			codeVerifier,
+			iss,
+			url
+		);
 
-	// Filter by allowed user emails or domains
-	if (allowedUserEmails.length > 0 || allowedUserDomains.length > 0) {
-		if (!userData.email) {
-			throw error(403, "User not allowed: email not returned");
-		}
-		const emailVerified = userData.email_verified ?? true;
-		if (!emailVerified) {
-			throw error(403, "User not allowed: email not verified");
+		// Filter by allowed user emails or domains
+		if (allowedUserEmails.length > 0 || allowedUserDomains.length > 0) {
+			if (!userData.email) {
+				throw error(403, "User not allowed: email not returned");
+			}
+			const emailVerified = userData.email_verified ?? true;
+			if (!emailVerified) {
+				throw error(403, "User not allowed: email not verified");
+			}
+
+			const emailDomain = userData.email.split("@")[1];
+			const isEmailAllowed = allowedUserEmails.includes(userData.email);
+			const isDomainAllowed = allowedUserDomains.includes(emailDomain);
+
+			if (!isEmailAllowed && !isDomainAllowed) {
+				throw error(403, "User not allowed");
+			}
 		}
 
-		const emailDomain = userData.email.split("@")[1];
-		const isEmailAllowed = allowedUserEmails.includes(userData.email);
-		const isDomainAllowed = allowedUserDomains.includes(emailDomain);
+		await updateUser({
+			userData,
+			token,
+			locals,
+			cookies,
+			userAgent: request.headers.get("user-agent") ?? undefined,
+			ip: getClientAddress(),
+		});
 
-		if (!isEmailAllowed && !isDomainAllowed) {
-			throw error(403, "User not allowed");
+		// Prefer returning the user to their original in-app path when provided.
+		// `validatedToken.next` is sanitized server-side to avoid protocol-relative redirects.
+		const next = validatedToken.next;
+		if (next) {
+			return redirect(302, next);
 		}
+		return redirect(302, `${base}/`);
+	} catch (err) {
+		if (err instanceof Error) {
+			if (err.message === "OAUTH_PROVIDER_UNAVAILABLE") {
+				throw error(502, "OAUTH_PROVIDER_UNAVAILABLE: Authentication service is currently unavailable");
+			} else if (err.message === "OAUTH_PROVIDER_ERROR") {
+				throw error(502, "OAUTH_PROVIDER_ERROR: Failed to authenticate with provider");
+			}
+		}
+		// Re-throw other errors (403, 400, redirects, etc.)
+		throw err;
 	}
-
-	await updateUser({
-		userData,
-		token,
-		locals,
-		cookies,
-		userAgent: request.headers.get("user-agent") ?? undefined,
-		ip: getClientAddress(),
-	});
-
-	// Prefer returning the user to their original in-app path when provided.
-	// `validatedToken.next` is sanitized server-side to avoid protocol-relative redirects.
-	const next = validatedToken.next;
-	if (next) {
-		return redirect(302, next);
-	}
-	return redirect(302, `${base}/`);
 }

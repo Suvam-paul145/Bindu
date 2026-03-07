@@ -240,6 +240,20 @@
 			});
 		}
 
+		// Check for OAuth error query parameters
+		if (page.url.searchParams.has("error")) {
+			const errorType = page.url.searchParams.get("error");
+			if (errorType === "oauth_provider_unavailable") {
+				$error = "Authentication service is currently unavailable. Please try again later.";
+			} else if (errorType === "oauth_provider_error") {
+				$error = "Authentication failed. Please try again.";
+			}
+			// Remove error parameter from URL
+			const url = new URL(page.url);
+			url.searchParams.delete("error");
+			window.history.replaceState({}, "", url.toString());
+		}
+
 		// Global keyboard shortcut: New Chat (Ctrl/Cmd + Shift + O)
 		const onKeydown = (e: KeyboardEvent) => {
 			// Ignore when a modal has focus (app is inert)

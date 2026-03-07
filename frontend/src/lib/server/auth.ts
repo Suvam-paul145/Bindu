@@ -249,8 +249,13 @@ async function getOIDCClient(settings: OIDCSettings, url: URL): Promise<BaseClie
 		lastIssuerFetchedAt = null;
 	}
 	if (!lastIssuer) {
-		lastIssuer = await Issuer.discover(OIDConfig.PROVIDER_URL);
-		lastIssuerFetchedAt = new Date();
+		try {
+			lastIssuer = await Issuer.discover(OIDConfig.PROVIDER_URL);
+			lastIssuerFetchedAt = new Date();
+		} catch (error) {
+			logger.error({ error, provider: OIDConfig.PROVIDER_URL }, "Failed to discover OIDC provider");
+			throw new Error("OAUTH_PROVIDER_UNAVAILABLE");
+		}
 	}
 
 	const issuer = lastIssuer;
@@ -285,31 +290,39 @@ export async function getOIDCAuthorizationUrl(
 	settings: OIDCSettings,
 	params: { sessionId: string; next?: string; url: URL; cookies: Cookies }
 ): Promise<string> {
-	const client = await getOIDCClient(settings, params.url);
-	const csrfToken = await generateCsrfToken(
-		params.sessionId,
-		settings.redirectURI,
-		sanitizeReturnPath(params.next)
-	);
+	try {
+		const client = await getOIDCClient(settings, params.url);
+		const csrfToken = await generateCsrfToken(
+			params.sessionId,
+			settings.redirectURI,
+			sanitizeReturnPath(params.next)
+		);
 
-	const codeVerifier = generators.codeVerifier();
-	const codeChallenge = generators.codeChallenge(codeVerifier);
+		const codeVerifier = generators.codeVerifier();
+		const codeChallenge = generators.codeChallenge(codeVerifier);
 
-	params.cookies.set("hfChat-codeVerifier", codeVerifier, {
-		path: "/",
-		sameSite,
-		secure,
-		httpOnly: true,
-		expires: addHours(new Date(), 1),
-	});
+		params.cookies.set("hfChat-codeVerifier", codeVerifier, {
+			path: "/",
+			sameSite,
+			secure,
+			httpOnly: true,
+			expires: addHours(new Date(), 1),
+		});
 
-	return client.authorizationUrl({
-		code_challenge_method: "S256",
-		code_challenge: codeChallenge,
-		scope: OIDConfig.SCOPES,
-		state: csrfToken,
-		resource: OIDConfig.RESOURCE || undefined,
-	});
+		return client.authorizationUrl({
+			code_challenge_method: "S256",
+			code_challenge: codeChallenge,
+			scope: OIDConfig.SCOPES,
+			state: csrfToken,
+			resource: OIDConfig.RESOURCE || undefined,
+		});
+	} catch (error) {
+		if (error instanceof Error && error.message === "OAUTH_PROVIDER_UNAVAILABLE") {
+			throw error;
+		}
+		logger.error({ error }, "Failed to generate OIDC authorization URL");
+		throw new Error("OAUTH_PROVIDER_ERROR");
+	}
 }
 
 export async function getOIDCUserData(
@@ -319,18 +332,26 @@ export async function getOIDCUserData(
 	iss: string | undefined,
 	url: URL
 ): Promise<OIDCUserInfo> {
-	const client = await getOIDCClient(settings, url);
-	const token = await client.callback(
-		settings.redirectURI,
-		{
-			code,
-			iss,
-		},
-		{ code_verifier: codeVerifier }
-	);
-	const userData = await client.userinfo(token);
+	try {
+		const client = await getOIDCClient(settings, url);
+		const token = await client.callback(
+			settings.redirectURI,
+			{
+				code,
+				iss,
+			},
+			{ code_verifier: codeVerifier }
+		);
+		const userData = await client.userinfo(token);
 
-	return { token, userData };
+		return { token, userData };
+	} catch (error) {
+		if (error instanceof Error && error.message === "OAUTH_PROVIDER_UNAVAILABLE") {
+			throw error;
+		}
+		logger.error({ error }, "Failed to exchange OAuth code or fetch user info");
+		throw new Error("OAUTH_PROVIDER_ERROR");
+	}
 }
 
 /**
@@ -341,9 +362,18 @@ export async function refreshOAuthToken(
 	refreshToken: string,
 	url: URL
 ): Promise<TokenSet | null> {
-	const client = await getOIDCClient(settings, url);
-	const tokenSet = await client.refresh(refreshToken);
-	return tokenSet;
+	try {
+		const client = await getOIDCClient(settings, url);
+		const tokenSet = await client.refresh(refreshToken);
+		return tokenSet;
+	} catch (error) {
+		if (error instanceof Error && error.message === "OAUTH_PROVIDER_UNAVAILABLE") {
+			logger.error({ error }, "OAuth provider unavailable during token refresh");
+			return null;
+		}
+		logger.error({ error }, "Failed to refresh OAuth token");
+		return null;
+	}
 }
 
 export async function validateAndParseCsrfToken(
@@ -522,8 +552,6 @@ export async function triggerOauthFlow({ url, locals, cookies }: RequestEvent): 
 	// let redirectURI = `${(referer ? new URL(referer) : url).origin}${base}/login/callback`;
 	let redirectURI = `${url.origin}${base}/login/callback`;
 
-	// TODO: Handle errors if provider is not responding
-
 	if (url.searchParams.has("callback")) {
 		const callback = url.searchParams.get("callback") || redirectURI;
 		if (config.ALTERNATIVE_REDIRECT_URLS.includes(callback)) {
@@ -545,10 +573,25 @@ export async function triggerOauthFlow({ url, locals, cookies }: RequestEvent): 
 		next = sanitizeReturnPath(`${base}/`) ?? "/";
 	}
 
-	const authorizationUrl = await getOIDCAuthorizationUrl(
-		{ redirectURI },
-		{ sessionId: locals.sessionId, next, url, cookies }
-	);
+	try {
+		const authorizationUrl = await getOIDCAuthorizationUrl(
+			{ redirectURI },
+			{ sessionId: locals.sessionId, next, url, cookies }
+		);
 
-	throw redirect(302, authorizationUrl);
+		throw redirect(302, authorizationUrl);
+	} catch (error) {
+		if (error instanceof Error) {
+			if (error.message === "OAUTH_PROVIDER_UNAVAILABLE") {
+				logger.error({ error, provider: OIDConfig.PROVIDER_URL }, "OAuth provider unavailable");
+				// Redirect to error page with appropriate error message
+				throw redirect(302, `${base}/?error=oauth_provider_unavailable`);
+			} else if (error.message === "OAUTH_PROVIDER_ERROR") {
+				logger.error({ error }, "OAuth provider error");
+				throw redirect(302, `${base}/?error=oauth_provider_error`);
+			}
+		}
+		// Re-throw redirect errors and other unexpected errors
+		throw error;
+	}
 }
