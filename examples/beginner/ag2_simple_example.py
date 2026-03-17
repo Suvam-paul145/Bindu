@@ -26,8 +26,10 @@ config = {
     ),
     "deployment": {
         "url": "http://localhost:3773",
+        "expose": True,
+        "cors_origins": ["http://localhost:5173"],
     },
-    "skills": ["research", "question-answering"],
+    "skills": ["skills/question-answering"],
 }
 
 
