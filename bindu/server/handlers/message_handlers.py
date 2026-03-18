@@ -228,7 +228,9 @@ class MessageHandlers:
                                     return
                         return
 
+                    # FIX: Exponential backoff to prevent DB hammering
                     await anyio.sleep(poll_interval)
+                    poll_interval = min(poll_interval * 1.5, 2.0)
             except cancelled_exc:
                 logger.debug(f"Streaming client disconnected for task {task['id']}")
                 return
@@ -264,15 +266,16 @@ class MessageHandlers:
                                 exc_info=True,
                             )
 
+                # FIX: Force terminal "failed" state so the client UI doesn't hang forever
                 error_event = {
                     "kind": "status-update",
                     "task_id": str(task["id"]),
                     "context_id": str(context_id),
                     "status": {
-                        "state": current_state,
+                        "state": "failed",
                         "timestamp": timestamp,
                     },
-                    "final": current_state in app_settings.agent.terminal_states,
+                    "final": True,
                     "error": str(e),
                 }
                 yield self._sse_event(error_event)
