@@ -177,7 +177,7 @@ type TaskState =
 # 2. Add IP to network access list
 # 3. Create database user
 # 4. Set connection string in .env.local
-MONGODB_URL=mongodb+srv://user:pass@cluster.mongodb.net/chat-ui
+MONGODB_URL=your-mongodb-connection-string
 MONGODB_DB_NAME=bindu-chat
 ```
 
