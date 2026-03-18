@@ -9,11 +9,15 @@ import os
 
 from autogen import ConversableAgent, LLMConfig
 from bindu.penguin import bindufy
+from dotenv import load_dotenv
+
+load_dotenv()
 
 llm_config = LLMConfig(
     {
-        "model": os.getenv("LLM_MODEL", "gpt-4o-mini"),
-        "api_key": os.environ.get("OPENAI_API_KEY", ""),
+        "model": os.getenv("LLM_MODEL", "openai/gpt-4o-mini"),
+        "api_key": os.environ.get("OPENROUTER_API_KEY", ""),
+        "base_url": "https://openrouter.ai/api/v1",
     }
 )
 
