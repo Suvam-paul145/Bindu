@@ -625,7 +625,7 @@ class BinduApplication(Starlette):
             ValueError: If authentication provider is unknown
         """
         from .middleware.auth import HydraMiddleware
-        
+
         provider = app_settings.auth.provider.lower()
 
         if provider == "hydra":

@@ -241,7 +241,7 @@ def validate_authentication(
     if not app_settings.auth.enabled:
         return None
 
-    user_info = getattr(request.state, "user_info", None)
+    user_info = getattr(request.state, "user", None)
     if user_info:
         return None
 

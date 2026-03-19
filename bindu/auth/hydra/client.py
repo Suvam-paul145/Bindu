@@ -148,6 +148,8 @@ class HydraClient:
         Returns:
             Client information or None if not found
         """
+        from bindu.utils.exceptions import HTTPClientError
+
         try:
             # URL-encode client_id to handle DIDs with colons and special characters
             encoded_client_id = quote(client_id, safe="")
@@ -163,9 +165,16 @@ class HydraClient:
                 error_text = await response.text()
                 raise ValueError(f"Failed to get OAuth client: {error_text}")
 
+        except HTTPClientError as error:
+            # AsyncHTTPClient raises HTTPClientError for 4xx errors including 404
+            if error.status == 404:
+                logger.debug(f"OAuth client not found: {client_id}")
+                return None
+            # Re-raise other client errors
+            logger.error(f"Failed to get OAuth client: {error}")
+            raise
         except Exception as error:
-            # AsyncHTTPClient raises HTTPClientError for 404s
-            # If we get here, it's a different error
+            # Other errors (connection, timeout, etc.)
             logger.error(f"Failed to get OAuth client: {error}")
             raise
 

@@ -147,7 +147,7 @@ async def agent_run_endpoint(app: BinduApplication, request: Request) -> Respons
         # Permission checks (if authentication passed)
         if app_settings.auth.enabled:
             # Get user info from request state (set by auth middleware)
-            user_info = getattr(request.state, "user_info", None)
+            user_info = getattr(request.state, "user", None)
 
             # if permission checks are enabled, ensure the token has required scope
             if app_settings.auth.require_permissions:

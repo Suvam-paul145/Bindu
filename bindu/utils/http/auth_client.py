@@ -52,7 +52,7 @@ class HybridAuthClient:
         # Import here to avoid circular dependency:
         # auth_client -> registration -> HydraClient -> AsyncHTTPClient -> auth_client
         from bindu.auth.hydra.registration import load_agent_credentials
-        
+
         # Load OAuth credentials
         self.credentials = load_agent_credentials(self.agent_id, self.credentials_dir)
         if not self.credentials:
