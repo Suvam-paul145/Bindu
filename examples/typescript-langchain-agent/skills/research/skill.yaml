@@ -1,0 +1,25 @@
+id: research-v1
+name: research
+description: |
+  Research and information retrieval capability.
+  Uses LangChain.js with GPT-4o to answer questions,
+  summarize information, and provide detailed analysis.
+version: 1.0.0
+author: dev@example.com
+
+tags:
+  - research
+  - question-answering
+  - analysis
+
+input_modes:
+  - text/plain
+
+output_modes:
+  - text/plain
+  - application/json
+
+examples:
+  - "What is the current state of quantum computing?"
+  - "Summarize the key points of machine learning"
+  - "Explain the A2A protocol in simple terms"

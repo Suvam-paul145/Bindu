@@ -1,0 +1,23 @@
+id: question-answering-v1
+name: question-answering
+description: |
+  General question answering capability using OpenAI GPT-4o.
+  Handles conversational queries, explanations, and analysis.
+version: 1.0.0
+author: dev@example.com
+
+tags:
+  - question-answering
+  - conversation
+  - assistant
+
+input_modes:
+  - text/plain
+
+output_modes:
+  - text/plain
+
+examples:
+  - "Explain how microservices work"
+  - "What are the pros and cons of GraphQL?"
+  - "Help me understand async/await in TypeScript"
