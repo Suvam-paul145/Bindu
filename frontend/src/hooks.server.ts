@@ -177,7 +177,29 @@ export const handle: Handle = async ({ event, resolve }) => {
 					) {
 						// To get the same CSRF token after callback
 						refreshSessionCookie(event.cookies, auth.secretSessionId);
-						return await triggerOauthFlow(event);
+						const oauthResponse = await triggerOauthFlow(event);
+						if (oauthResponse.status === 502) {
+							const accept = event.request.headers.get("accept") || "";
+							const wantsHtml = accept.includes("text/html");
+
+							if (wantsHtml) {
+								try {
+									const body = await oauthResponse.clone().json();
+									if (typeof body?.code === "string") {
+										return new Response(null, {
+											status: 302,
+											headers: {
+												Location: `${base}/?error=${encodeURIComponent(body.code)}`,
+												"Cache-Control": "no-store",
+											},
+										});
+									}
+								} catch {
+									// fall through and return original structured 502 response
+								}
+							}
+						}
+						return oauthResponse;
 					}
 				} else {
 					// Redirect to OAuth flow unless on the authorized pages (home, shared conversation, login, healthcheck, model thumbnails)
@@ -193,7 +215,29 @@ export const handle: Handle = async ({ event, resolve }) => {
 						!event.url.pathname.startsWith(`${base}/api`)
 					) {
 						refreshSessionCookie(event.cookies, auth.secretSessionId);
-						return triggerOauthFlow(event);
+						const oauthResponse = await triggerOauthFlow(event);
+						if (oauthResponse.status === 502) {
+							const accept = event.request.headers.get("accept") || "";
+							const wantsHtml = accept.includes("text/html");
+
+							if (wantsHtml) {
+								try {
+									const body = await oauthResponse.clone().json();
+									if (typeof body?.code === "string") {
+										return new Response(null, {
+											status: 302,
+											headers: {
+												Location: `${base}/?error=${encodeURIComponent(body.code)}`,
+												"Cache-Control": "no-store",
+											},
+										});
+									}
+								} catch {
+									// fall through and return original structured 502 response
+								}
+							}
+						}
+						return oauthResponse;
 					}
 				}
 			}

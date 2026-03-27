@@ -135,6 +135,13 @@
 
 	let errorToastTimeout: ReturnType<typeof setTimeout>;
 	let currentError: string | undefined = $state();
+	let lastOAuthErrorCode: string | null = $state(null);
+
+	const OAUTH_ERROR_MESSAGES: Record<string, string> = {
+		OAUTH_PROVIDER_UNAVAILABLE:
+			"Sign-in service is temporarily unavailable. Please try again later.",
+		OAUTH_PROVIDER_ERROR: "An error occurred during sign-in. Please try again.",
+	};
 
 	async function onError() {
 		// If a new different error comes, wait for the current error to hide first
@@ -201,6 +208,16 @@
 
 	$effect(() => {
 		if ($error) onError();
+	});
+
+	$effect(() => {
+		const oauthErrorCode = page.url.searchParams.get("error");
+		if (!oauthErrorCode || oauthErrorCode === lastOAuthErrorCode) {
+			return;
+		}
+
+		lastOAuthErrorCode = oauthErrorCode;
+		$error = OAUTH_ERROR_MESSAGES[oauthErrorCode] ?? ERROR_MESSAGES.default;
 	});
 
 	$effect(() => {

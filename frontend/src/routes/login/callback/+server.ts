@@ -70,15 +70,22 @@ export async function GET({ url, locals, cookies, request, getClientAddress }) {
 		));
 	} catch (err) {
 		if (err instanceof OAuthProviderError) {
+			const message =
+				err.code === "OAUTH_PROVIDER_UNAVAILABLE"
+					? "The sign-in service is temporarily unavailable. Please try again later."
+					: "An error occurred during sign-in. Please try again.";
+
 			logger.error(
 				{ code: err.code, msg: err.message },
 				"OAuth provider error during callback token exchange"
 			);
-			throw error(
-				502,
-				err.code === "OAUTH_PROVIDER_UNAVAILABLE"
-					? "The sign-in service is temporarily unavailable. Please try again later."
-					: "An error occurred during sign-in. Please try again."
+
+			return new Response(
+				JSON.stringify({ code: err.code, message }),
+				{
+					status: 502,
+					headers: { "Content-Type": "application/json" },
+				}
 			);
 		}
 		throw err;
